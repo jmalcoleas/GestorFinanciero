@@ -74,3 +74,34 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_transactions_user_date' AND object_id = OBJECT_ID('dbo.transactions'))
 CREATE INDEX IX_transactions_user_date ON transactions (user_id, date);
 GO
+
+-- ==== Ahorros y saldos de partida ====
+-- Saldos con los que el usuario empieza a usar la aplicación.
+IF COL_LENGTH('dbo.users', 'initial_balance') IS NULL
+ALTER TABLE users ADD initial_balance DECIMAL(12,2) NOT NULL CONSTRAINT DF_users_initial_balance DEFAULT 0;
+GO
+
+IF COL_LENGTH('dbo.users', 'initial_savings') IS NULL
+ALTER TABLE users ADD initial_savings DECIMAL(12,2) NOT NULL CONSTRAINT DF_users_initial_savings DEFAULT 0;
+GO
+
+-- Parte de un ingreso que se destina directamente a ahorros (el resto va a la cuenta).
+IF COL_LENGTH('dbo.transactions', 'savings_amount') IS NULL
+ALTER TABLE transactions ADD savings_amount DECIMAL(10,2) NOT NULL CONSTRAINT DF_transactions_savings DEFAULT 0;
+GO
+
+IF OBJECT_ID('dbo.CK_transactions_savings', 'C') IS NULL
+ALTER TABLE transactions ADD CONSTRAINT CK_transactions_savings CHECK (savings_amount >= 0 AND savings_amount <= amount);
+GO
+
+-- Meses en los que el usuario eligió "Omitir" al pedirle el ingreso principal.
+IF OBJECT_ID('dbo.income_prompt_skips', 'U') IS NULL
+CREATE TABLE income_prompt_skips (
+    user_id INT NOT NULL,
+    [year] INT NOT NULL,
+    [month] INT NOT NULL,
+    created_at DATETIME DEFAULT GETDATE(),
+    PRIMARY KEY (user_id, [year], [month]),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+GO

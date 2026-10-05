@@ -11,6 +11,9 @@ namespace GestorFinancieroApp.UI
         public static readonly Color Accent = Color.FromArgb(31, 111, 235);
         public static readonly Color Surface = Color.FromArgb(244, 246, 249);
 
+        /// <summary>Icono del ejecutable, para la barra de título y la barra de tareas.</summary>
+        public static readonly Icon AppIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+
         public static Form NewDialog(string title)
         {
             return new Form

@@ -14,9 +14,12 @@ namespace GestorFinancieroApp.UI
         private DateTime _month = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
 
         private readonly Label _lblMonth = new Label();
+        private readonly Label _lblAccount = new Label();
+        private readonly Label _lblTotalSavings = new Label();
         private readonly Label _lblIncome = new Label();
+        private readonly Label _lblMonthSavings = new Label();
         private readonly Label _lblExpenses = new Label();
-        private readonly Label _lblBalance = new Label();
+        private readonly Label _lblAvailable = new Label();
         private readonly Label _lblStatusTitle = new Label();
         private readonly Label _lblStatusDetail = new Label();
         private readonly ColorBar _bar = new ColorBar();
@@ -29,6 +32,7 @@ namespace GestorFinancieroApp.UI
         {
             _user = user;
             Text = "Gestor Financiero";
+            Icon = Ui.AppIcon;
             Font = Ui.Base;
             ClientSize = new Size(1000, 700);
             MinimumSize = new Size(900, 620);
@@ -49,6 +53,7 @@ namespace GestorFinancieroApp.UI
             Shown += (s, e) =>
             {
                 RefreshAll();
+                PromptMonthlyIncome();
                 CheckCelebrations();
             };
         }
@@ -89,23 +94,31 @@ namespace GestorFinancieroApp.UI
             var nav = new FlowLayoutPanel { AutoSize = true, Anchor = AnchorStyles.None, WrapContents = false };
             nav.Controls.AddRange(new Control[] { prev, _lblMonth, next, today });
 
+            var balances = Ui.SecondaryButton("Saldos de partida");
+            balances.Click += (s, e) => EditInitialBalances();
             var logout = Ui.SecondaryButton("Cerrar sesión");
-            logout.Anchor = AnchorStyles.Right;
             logout.Click += (s, e) => { LoggedOut = true; Close(); };
+            var right = new FlowLayoutPanel { AutoSize = true, Anchor = AnchorStyles.Right, WrapContents = false };
+            right.Controls.AddRange(new Control[] { balances, logout });
 
             bar.Controls.Add(hello, 0, 0);
             bar.Controls.Add(nav, 1, 0);
-            bar.Controls.Add(logout, 2, 0);
+            bar.Controls.Add(right, 2, 0);
             return bar;
         }
 
         private Control BuildCards()
         {
-            var t = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
-            for (int i = 0; i < 3; i++) t.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / 3));
-            t.Controls.Add(Card("Ingresos", _lblIncome, Indicator.Good), 0, 0);
-            t.Controls.Add(Card("Gastos", _lblExpenses, Indicator.Bad), 1, 0);
-            t.Controls.Add(Card("Balance", _lblBalance, Ui.Accent), 2, 0);
+            // Izquierda: totales acumulados de todos los meses. Derecha: el mes que estás viendo.
+            var savingsColor = Color.FromArgb(130, 80, 223);
+            var t = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 6, RowCount = 1 };
+            for (int i = 0; i < 6; i++) t.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / 6));
+            t.Controls.Add(Card("Cuenta (total)", _lblAccount, Ui.Accent), 0, 0);
+            t.Controls.Add(Card("Ahorros (total)", _lblTotalSavings, savingsColor), 1, 0);
+            t.Controls.Add(Card("Ingresos del mes", _lblIncome, Indicator.Good), 2, 0);
+            t.Controls.Add(Card("A ahorros este mes", _lblMonthSavings, savingsColor), 3, 0);
+            t.Controls.Add(Card("Gastos del mes", _lblExpenses, Indicator.Bad), 4, 0);
+            t.Controls.Add(Card("Disponible del mes", _lblAvailable, Ui.Accent), 5, 0);
             return t;
         }
 
@@ -120,7 +133,7 @@ namespace GestorFinancieroApp.UI
             };
             var strip = new Panel { Dock = DockStyle.Left, Width = 5, BackColor = accent };
             value.Dock = DockStyle.Fill;
-            value.Font = new Font("Segoe UI", 20f, FontStyle.Bold);
+            value.Font = new Font("Segoe UI", 14f, FontStyle.Bold);
             value.TextAlign = ContentAlignment.MiddleLeft;
             var cap = new Label
             {
@@ -193,7 +206,7 @@ namespace GestorFinancieroApp.UI
             editTx.Click += (s, e) => EditTransaction();
             deleteTx.Click += (s, e) => DeleteTransaction();
             _gridTx.CellDoubleClick += (s, e) => { if (e.RowIndex >= 0) EditTransaction(); };
-            AddGridColumns(_gridTx, "Fecha", "Descripción", "Categoría", "Tipo", "Importe");
+            AddGridColumns(_gridTx, "Fecha", "Descripción", "Categoría", "Tipo", "A ahorros", "Importe");
             txTab.Controls.Add(_gridTx);
             txTab.Controls.Add(Toolbar(addIncome, addExpense, editTx, deleteTx));
 
@@ -245,7 +258,7 @@ namespace GestorFinancieroApp.UI
             foreach (string h in headers)
             {
                 var col = new DataGridViewTextBoxColumn { HeaderText = h, SortMode = DataGridViewColumnSortMode.NotSortable };
-                bool numeric = h == "Presupuesto" || h == "Gastado" || h == "Restante" || h == "Uso" || h == "Importe";
+                bool numeric = h == "Presupuesto" || h == "Gastado" || h == "Restante" || h == "Uso" || h == "Importe" || h == "A ahorros";
                 if (numeric) col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
                 if (h == "Descripción" || h == "Destino") col.FillWeight = 160;
                 g.Columns.Add(col);
@@ -267,13 +280,21 @@ namespace GestorFinancieroApp.UI
                 int y = _month.Year, m = _month.Month;
                 _lblMonth.Text = Money.MonthName(_month);
 
-                decimal income, expenses;
-                Repository.GetSummary(_user.Id, y, m, out income, out expenses);
+                decimal account, totalSavings;
+                Repository.GetTotals(_user.Id, out account, out totalSavings);
+                _lblAccount.Text = Money.Format(account);
+                _lblAccount.ForeColor = account < 0 ? Indicator.Bad : Color.Black;
+                _lblTotalSavings.Text = Money.Format(totalSavings);
+
+                // Disponible del mes = ingresos - lo destinado a ahorros - gastos.
+                decimal income, savings, expenses;
+                Repository.GetSummary(_user.Id, y, m, out income, out savings, out expenses);
                 _lblIncome.Text = Money.Format(income);
+                _lblMonthSavings.Text = Money.Format(savings);
                 _lblExpenses.Text = Money.Format(expenses);
-                decimal balance = income - expenses;
-                _lblBalance.Text = Money.Format(balance);
-                _lblBalance.ForeColor = balance < 0 ? Indicator.Bad : Color.Black;
+                decimal available = income - savings - expenses;
+                _lblAvailable.Text = Money.Format(available);
+                _lblAvailable.ForeColor = available < 0 ? Indicator.Bad : Color.Black;
 
                 var budgets = Repository.GetBudgets(_user.Id, y, m);
                 FillBudgets(budgets);
@@ -311,10 +332,11 @@ namespace GestorFinancieroApp.UI
             {
                 int i = _gridTx.Rows.Add(t.Date.ToString("dd/MM/yyyy"), t.Description, t.CategoryName,
                     t.IsIncome ? "Ingreso" : "Gasto",
+                    t.IsIncome && t.Savings > 0 ? Money.Format(t.Savings) : "",
                     (t.IsIncome ? "+" : "−") + Money.Format(t.Amount));
                 DataGridViewRow row = _gridTx.Rows[i];
                 row.Tag = t;
-                row.Cells[4].Style.ForeColor = t.IsIncome ? Indicator.Good : Indicator.Bad;
+                row.Cells[5].Style.ForeColor = t.IsIncome ? Indicator.Good : Indicator.Bad;
             }
             _gridTx.ClearSelection();
         }
@@ -354,6 +376,47 @@ namespace GestorFinancieroApp.UI
             if (!closed)
                 detail += string.Format("Llevas {0} del mes (marca oscura en la barra).", expected.ToString("P0", Money.Es));
             _lblStatusDetail.Text = detail;
+        }
+
+        /// <summary>
+        /// Al abrir la app, si este mes aún no hay ningún ingreso, lo primero que se pide es el ingreso principal.
+        /// Si se omite, no se vuelve a preguntar ese mes.
+        /// </summary>
+        private void PromptMonthlyIncome()
+        {
+            DateTime now = DateTime.Today;
+            var thisMonth = new DateTime(now.Year, now.Month, 1);
+            decimal income = 0, savings, expenses;
+            bool skipped = false;
+            if (!Ui.Guard(this, () =>
+            {
+                Repository.GetSummary(_user.Id, thisMonth.Year, thisMonth.Month, out income, out savings, out expenses);
+                skipped = Repository.IsIncomePromptSkipped(_user.Id, thisMonth.Year, thisMonth.Month);
+            })) return;
+            if (income > 0 || skipped) return;
+
+            _month = thisMonth;
+            using (var dlg = new TransactionDialog(_user.Id, null, true, null, now, thisMonth))
+            {
+                if (dlg.ShowDialog(this) == DialogResult.OK)
+                    Ui.Guard(this, () => Repository.AddTransaction(
+                        _user.Id, dlg.CategoryId, dlg.Date, dlg.Amount, dlg.Savings, dlg.Description));
+                else
+                    Ui.Guard(this, () => Repository.SkipIncomePrompt(_user.Id, thisMonth.Year, thisMonth.Month));
+            }
+            RefreshAll();
+        }
+
+        private void EditInitialBalances()
+        {
+            using (var dlg = new BalancesDialog(_user))
+                if (dlg.ShowDialog(this) == DialogResult.OK &&
+                    Ui.Guard(this, () => Repository.UpdateInitialBalances(_user.Id, dlg.InitialBalance, dlg.InitialSavings)))
+                {
+                    _user.InitialBalance = dlg.InitialBalance;
+                    _user.InitialSavings = dlg.InitialSavings;
+                    RefreshAll();
+                }
         }
 
         private void CheckCelebrations()
@@ -440,7 +503,7 @@ namespace GestorFinancieroApp.UI
             using (var dlg = new TransactionDialog(_user.Id, null, income,
                 forBudget == null ? null : forBudget.CategoryName, DefaultDate()))
                 if (dlg.ShowDialog(this) == DialogResult.OK)
-                    if (Ui.Guard(this, () => Repository.AddTransaction(_user.Id, dlg.CategoryId, dlg.Date, dlg.Amount, dlg.Description)))
+                    if (Ui.Guard(this, () => Repository.AddTransaction(_user.Id, dlg.CategoryId, dlg.Date, dlg.Amount, dlg.Savings, dlg.Description)))
                     {
                         // Si se apuntó en otro mes, saltamos a él para que el usuario vea el movimiento.
                         if (dlg.Date.Year != _month.Year || dlg.Date.Month != _month.Month)
@@ -455,7 +518,7 @@ namespace GestorFinancieroApp.UI
             if (t == null) { Ui.Warn(this, "Selecciona un movimiento de la lista."); return; }
             using (var dlg = new TransactionDialog(_user.Id, t, t.IsIncome, null, t.Date))
                 if (dlg.ShowDialog(this) == DialogResult.OK)
-                    if (Ui.Guard(this, () => Repository.UpdateTransaction(_user.Id, t.Id, dlg.CategoryId, dlg.Date, dlg.Amount, dlg.Description)))
+                    if (Ui.Guard(this, () => Repository.UpdateTransaction(_user.Id, t.Id, dlg.CategoryId, dlg.Date, dlg.Amount, dlg.Savings, dlg.Description)))
                     {
                         if (dlg.Date.Year != _month.Year || dlg.Date.Month != _month.Month)
                             _month = new DateTime(dlg.Date.Year, dlg.Date.Month, 1);

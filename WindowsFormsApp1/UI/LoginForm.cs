@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using GestorFinancieroApp.Data;
+using GestorFinancieroApp.Logic;
 using GestorFinancieroApp.Security;
 
 namespace GestorFinancieroApp.UI
@@ -13,7 +14,9 @@ namespace GestorFinancieroApp.UI
         private readonly TextBox _email = new TextBox { MaxLength = 150 };
         private readonly TextBox _pass = new TextBox { UseSystemPasswordChar = true, MaxLength = 100 };
         private readonly TextBox _pass2 = new TextBox { UseSystemPasswordChar = true, MaxLength = 100 };
-        private Label _nameLabel, _pass2Label, _title;
+        private readonly TextBox _balance = new TextBox { Text = "0" };
+        private readonly TextBox _savings = new TextBox { Text = "0" };
+        private Label _nameLabel, _pass2Label, _balanceLabel, _savingsLabel, _title;
         private Button _submit, _toggle;
         private bool _registerMode;
 
@@ -22,6 +25,7 @@ namespace GestorFinancieroApp.UI
         public LoginForm()
         {
             Text = "Gestor Financiero";
+            Icon = Ui.AppIcon;
             Font = Ui.Base;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             StartPosition = FormStartPosition.CenterScreen;
@@ -44,6 +48,8 @@ namespace GestorFinancieroApp.UI
             Ui.AddRow(grid, "Correo", _email);
             Ui.AddRow(grid, "Contraseña", _pass);
             _pass2Label = Ui.AddRow(grid, "Repite contraseña", _pass2);
+            _balanceLabel = Ui.AddRow(grid, "Dinero en la cuenta (€)", _balance);
+            _savingsLabel = Ui.AddRow(grid, "Dinero ahorrado (€)", _savings);
 
             _submit = Ui.PrimaryButton("Entrar");
             _toggle = new Button
@@ -70,6 +76,8 @@ namespace GestorFinancieroApp.UI
             _registerMode = register;
             _name.Visible = _nameLabel.Visible = register;
             _pass2.Visible = _pass2Label.Visible = register;
+            _balance.Visible = _balanceLabel.Visible = register;
+            _savings.Visible = _savingsLabel.Visible = register;
             _submit.Text = register ? "Crear cuenta" : "Entrar";
             _toggle.Text = register ? "Ya tengo cuenta" : "¿No tienes cuenta? Crear una";
             _pass.Clear();
@@ -117,12 +125,20 @@ namespace GestorFinancieroApp.UI
             if (pass.Length < 8) { Ui.Warn(this, "La contraseña debe tener al menos 8 caracteres."); return; }
             if (pass != _pass2.Text) { Ui.Warn(this, "Las contraseñas no coinciden."); return; }
 
+            decimal balance, savings;
+            if (!Money.TryParse(_balance.Text, out balance) || balance < 0 || balance > Money.Max ||
+                !Money.TryParse(_savings.Text, out savings) || savings < 0 || savings > Money.Max)
+            {
+                Ui.Warn(this, "El dinero en la cuenta y el ahorrado deben ser números de 0 o más (pon 0 si no tienes).");
+                return;
+            }
+
             User created = null;
             bool exists = false;
             bool ok = Ui.Guard(this, () =>
             {
                 exists = Repository.EmailExists(email);
-                if (!exists) created = Repository.CreateUser(name, email, PasswordHasher.Hash(pass));
+                if (!exists) created = Repository.CreateUser(name, email, PasswordHasher.Hash(pass), balance, savings);
             });
             if (!ok) return;
             if (exists) { Ui.Warn(this, "Ya existe una cuenta con ese correo."); return; }

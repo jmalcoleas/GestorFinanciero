@@ -45,7 +45,8 @@ namespace GestorFinancieroApp.Data
         {
             using (var cn = Open())
             using (var cmd = Cmd(cn,
-                "SELECT id, name, email, password_hash FROM users WHERE email = @e AND is_active = 1", "@e", email))
+                "SELECT id, name, email, password_hash, initial_balance, initial_savings FROM users WHERE email = @e AND is_active = 1",
+                "@e", email))
             using (var r = cmd.ExecuteReader())
             {
                 if (!r.Read()) return null;
@@ -54,20 +55,23 @@ namespace GestorFinancieroApp.Data
                     Id = r.GetInt32(0),
                     Name = r.GetString(1),
                     Email = r.GetString(2),
-                    PasswordHash = r.GetString(3)
+                    PasswordHash = r.GetString(3),
+                    InitialBalance = r.GetDecimal(4),
+                    InitialSavings = r.GetDecimal(5)
                 };
             }
         }
 
-        public static User CreateUser(string name, string email, string passwordHash)
+        public static User CreateUser(string name, string email, string passwordHash, decimal initialBalance, decimal initialSavings)
         {
             using (var cn = Open())
             using (var tx = cn.BeginTransaction())
             {
                 int id;
                 using (var cmd = Cmd(cn,
-                    "INSERT INTO users (name, email, password_hash) OUTPUT INSERTED.id VALUES (@n, @e, @p)",
-                    "@n", name, "@e", email, "@p", passwordHash))
+                    "INSERT INTO users (name, email, password_hash, initial_balance, initial_savings) " +
+                    "OUTPUT INSERTED.id VALUES (@n, @e, @p, @b, @s)",
+                    "@n", name, "@e", email, "@p", passwordHash, "@b", initialBalance, "@s", initialSavings))
                 {
                     cmd.Transaction = tx;
                     id = (int)cmd.ExecuteScalar();
@@ -76,8 +80,66 @@ namespace GestorFinancieroApp.Data
                 InsertDefaults(cn, tx, id, DefaultExpense, "expense");
                 InsertDefaults(cn, tx, id, DefaultIncome, "income");
                 tx.Commit();
-                return new User { Id = id, Name = name, Email = email };
+                return new User
+                {
+                    Id = id, Name = name, Email = email,
+                    InitialBalance = initialBalance, InitialSavings = initialSavings
+                };
             }
+        }
+
+        public static void UpdateInitialBalances(int userId, decimal initialBalance, decimal initialSavings)
+        {
+            using (var cn = Open())
+            using (var cmd = Cmd(cn,
+                "UPDATE users SET initial_balance = @b, initial_savings = @s, updated_at = GETDATE() WHERE id = @u",
+                "@b", initialBalance, "@s", initialSavings, "@u", userId))
+                cmd.ExecuteNonQuery();
+        }
+
+        /// <summary>
+        /// Saldos acumulados de todos los meses: cuenta = saldo inicial + ingresos que llegan a la cuenta - gastos;
+        /// ahorros = ahorros iniciales + todo lo destinado a ahorros desde los ingresos.
+        /// </summary>
+        public static void GetTotals(int userId, out decimal account, out decimal savings)
+        {
+            account = 0;
+            savings = 0;
+            using (var cn = Open())
+            using (var cmd = Cmd(cn, @"
+SELECT u.initial_balance + ISNULL(SUM(CASE WHEN c.type = 'income' THEN t.amount - t.savings_amount
+                                           WHEN c.type = 'expense' THEN -t.amount END), 0),
+       u.initial_savings + ISNULL(SUM(CASE WHEN c.type = 'income' THEN t.savings_amount END), 0)
+FROM users u
+LEFT JOIN transactions t ON t.user_id = u.id AND t.is_active = 1
+LEFT JOIN categories c ON c.id = t.category_id
+WHERE u.id = @u
+GROUP BY u.initial_balance, u.initial_savings", "@u", userId))
+            using (var r = cmd.ExecuteReader())
+                if (r.Read())
+                {
+                    account = r.GetDecimal(0);
+                    savings = r.GetDecimal(1);
+                }
+        }
+
+        public static bool IsIncomePromptSkipped(int userId, int year, int month)
+        {
+            using (var cn = Open())
+            using (var cmd = Cmd(cn,
+                "SELECT COUNT(*) FROM income_prompt_skips WHERE user_id = @u AND [year] = @y AND [month] = @m",
+                "@u", userId, "@y", year, "@m", month))
+                return (int)cmd.ExecuteScalar() > 0;
+        }
+
+        public static void SkipIncomePrompt(int userId, int year, int month)
+        {
+            using (var cn = Open())
+            using (var cmd = Cmd(cn, @"
+IF NOT EXISTS (SELECT 1 FROM income_prompt_skips WHERE user_id = @u AND [year] = @y AND [month] = @m)
+    INSERT INTO income_prompt_skips (user_id, [year], [month]) VALUES (@u, @y, @m);",
+                "@u", userId, "@y", year, "@m", month))
+                cmd.ExecuteNonQuery();
         }
 
         private static void InsertDefaults(SqlConnection cn, SqlTransaction tx, int userId, string[] names, string type)
@@ -132,7 +194,7 @@ SELECT @id;";
             var list = new List<TransactionRow>();
             using (var cn = Open())
             using (var cmd = Cmd(cn, @"
-SELECT t.id, t.date, t.description, t.amount, t.category_id, c.name, c.type
+SELECT t.id, t.date, t.description, t.amount, t.category_id, c.name, c.type, t.savings_amount
 FROM transactions t JOIN categories c ON c.id = t.category_id
 WHERE t.user_id = @u AND t.is_active = 1 AND t.date >= @from AND t.date < @to
 ORDER BY t.date DESC, t.id DESC",
@@ -147,28 +209,31 @@ ORDER BY t.date DESC, t.id DESC",
                         Amount = r.GetDecimal(3),
                         CategoryId = r.GetInt32(4),
                         CategoryName = r.GetString(5),
-                        Type = r.GetString(6)
+                        Type = r.GetString(6),
+                        Savings = r.GetDecimal(7)
                     });
             return list;
         }
 
-        public static void AddTransaction(int userId, int categoryId, DateTime date, decimal amount, string description)
+        /// <param name="savings">Parte del importe que va a ahorros (solo tiene sentido en ingresos).</param>
+        public static void AddTransaction(int userId, int categoryId, DateTime date, decimal amount, decimal savings, string description)
         {
             using (var cn = Open())
             using (var cmd = Cmd(cn,
-                "INSERT INTO transactions (amount, date, description, category_id, user_id) VALUES (@a, @d, @desc, @c, @u)",
-                "@a", amount, "@d", date.Date, "@desc", NullIfEmpty(description), "@c", categoryId, "@u", userId))
+                "INSERT INTO transactions (amount, savings_amount, date, description, category_id, user_id) " +
+                "VALUES (@a, @sv, @d, @desc, @c, @u)",
+                "@a", amount, "@sv", savings, "@d", date.Date, "@desc", NullIfEmpty(description), "@c", categoryId, "@u", userId))
                 cmd.ExecuteNonQuery();
         }
 
-        public static void UpdateTransaction(int userId, int id, int categoryId, DateTime date, decimal amount, string description)
+        public static void UpdateTransaction(int userId, int id, int categoryId, DateTime date, decimal amount, decimal savings, string description)
         {
             using (var cn = Open())
             using (var cmd = Cmd(cn, @"
 UPDATE transactions
-SET amount = @a, date = @d, description = @desc, category_id = @c, updated_at = GETDATE()
+SET amount = @a, savings_amount = @sv, date = @d, description = @desc, category_id = @c, updated_at = GETDATE()
 WHERE id = @id AND user_id = @u AND is_active = 1",
-                "@a", amount, "@d", date.Date, "@desc", NullIfEmpty(description), "@c", categoryId, "@id", id, "@u", userId))
+                "@a", amount, "@sv", savings, "@d", date.Date, "@desc", NullIfEmpty(description), "@c", categoryId, "@id", id, "@u", userId))
                 cmd.ExecuteNonQuery();
         }
 
@@ -182,14 +247,15 @@ WHERE id = @id AND user_id = @u AND is_active = 1",
                 cmd.ExecuteNonQuery();
         }
 
-        public static void GetSummary(int userId, int year, int month, out decimal income, out decimal expenses)
+        public static void GetSummary(int userId, int year, int month, out decimal income, out decimal savings, out decimal expenses)
         {
             var from = new DateTime(year, month, 1);
             income = 0;
+            savings = 0;
             expenses = 0;
             using (var cn = Open())
             using (var cmd = Cmd(cn, @"
-SELECT c.type, SUM(t.amount)
+SELECT c.type, SUM(t.amount), SUM(t.savings_amount)
 FROM transactions t JOIN categories c ON c.id = t.category_id
 WHERE t.user_id = @u AND t.is_active = 1 AND t.date >= @from AND t.date < @to
 GROUP BY c.type",
@@ -197,7 +263,11 @@ GROUP BY c.type",
             using (var r = cmd.ExecuteReader())
                 while (r.Read())
                 {
-                    if (r.GetString(0) == "income") income = r.GetDecimal(1);
+                    if (r.GetString(0) == "income")
+                    {
+                        income = r.GetDecimal(1);
+                        savings = r.GetDecimal(2);
+                    }
                     else expenses = r.GetDecimal(1);
                 }
         }

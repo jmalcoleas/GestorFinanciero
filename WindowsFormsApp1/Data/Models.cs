@@ -8,6 +8,8 @@ namespace GestorFinancieroApp.Data
         public string Name { get; set; }
         public string Email { get; set; }
         public string PasswordHash { get; set; }
+        public decimal InitialBalance { get; set; }
+        public decimal InitialSavings { get; set; }
     }
 
     internal sealed class Category
@@ -24,6 +26,7 @@ namespace GestorFinancieroApp.Data
         public DateTime Date { get; set; }
         public string Description { get; set; }
         public decimal Amount { get; set; }
+        public decimal Savings { get; set; }
         public int CategoryId { get; set; }
         public string CategoryName { get; set; }
         public string Type { get; set; }

@@ -12,6 +12,7 @@
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
+    <ApplicationIcon>icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -52,6 +53,9 @@
     <Compile Include="Data\Repository.cs" />
     <Compile Include="Logic\Indicator.cs" />
     <Compile Include="Security\PasswordHasher.cs" />
+    <Compile Include="UI\BalancesDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="UI\BudgetDialog.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -95,6 +99,7 @@
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>
+    <Content Include="icon.ico" />
     <EmbeddedResource Include="database\schema.sql">
       <LogicalName>schema.sql</LogicalName>
     </EmbeddedResource>
