@@ -1,74 +1,43 @@
 using System;
-using System.Configuration;
-using System.Data.SqlClient;
+using System.Data.SQLite;
 using System.IO;
 using System.Reflection;
-using System.Text.RegularExpressions;
 
 namespace GestorFinancieroApp.Data
 {
     /// <summary>
-    /// Localiza el servidor SQL, crea la base de datos y el esquema si hace falta.
+    /// Base de datos SQLite portable: un único archivo (datos\gestor.db) junto al ejecutable.
+    /// Para llevarte la app y tus datos a otro equipo basta con copiar la carpeta entera.
     /// </summary>
     internal static class Db
     {
-        private const string DbName = "GestionFinanciera";
-
         public static string ConnectionString { get; private set; }
+        public static string DatabasePath { get; private set; }
 
         public static void Initialize()
         {
-            string chosen = null, firstReachable = null;
-            Exception last = null;
-
-            foreach (string server in CandidateServers())
+            string dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "datos");
+            try
             {
-                try
-                {
-                    using (var cn = new SqlConnection(ServerConnection(server, "master")))
-                    {
-                        cn.Open();
-                        if (firstReachable == null) firstReachable = server;
-                        using (var cmd = new SqlCommand("SELECT DB_ID(@n)", cn))
-                        {
-                            cmd.Parameters.AddWithValue("@n", DbName);
-                            if (!(cmd.ExecuteScalar() is DBNull)) { chosen = server; break; }
-                        }
-                    }
-                }
-                catch (SqlException ex) { last = ex; }
+                Directory.CreateDirectory(dir);
             }
-
-            // Si la base de datos no existe en ningún servidor, se crea en el primero que responda.
-            if (chosen == null) chosen = firstReachable;
-            if (chosen == null)
+            catch (Exception ex)
+            {
                 throw new InvalidOperationException(
-                    "No se pudo conectar con SQL Server (LocalDB ni SQL Express).\n" +
-                    "Puedes indicar el servidor en App.config, clave \"SqlServer\".", last);
-
-            using (var cn = new SqlConnection(ServerConnection(chosen, "master")))
-            {
-                cn.Open();
-                using (var cmd = new SqlCommand(
-                    "IF DB_ID('" + DbName + "') IS NULL CREATE DATABASE [" + DbName + "]", cn))
-                    cmd.ExecuteNonQuery();
+                    "No se puede escribir en la carpeta de la aplicación.\n" +
+                    "Si abriste el programa desde dentro del .zip, extráelo primero a una carpeta normal.", ex);
             }
 
-            ConnectionString = ServerConnection(chosen, DbName);
+            DatabasePath = Path.Combine(dir, "gestor.db");
+            ConnectionString = new SQLiteConnectionStringBuilder
+            {
+                DataSource = DatabasePath,
+                ForeignKeys = true,
+                Pooling = false,           // evita que el archivo quede bloqueado al copiarlo
+                JournalMode = SQLiteJournalModeEnum.Delete
+            }.ToString();
+
             ApplySchema();
-        }
-
-        private static string[] CandidateServers()
-        {
-            string configured = ConfigurationManager.AppSettings["SqlServer"];
-            if (!string.IsNullOrWhiteSpace(configured)) return new[] { configured.Trim() };
-            return new[] { @"(localdb)\MSSQLLocalDB", @".\SQLEXPRESS" };
-        }
-
-        private static string ServerConnection(string server, string database)
-        {
-            return "Server=" + server + ";Database=" + database +
-                   ";Integrated Security=true;Connect Timeout=20;MultipleActiveResultSets=false";
         }
 
         private static void ApplySchema()
@@ -80,14 +49,10 @@ namespace GestorFinancieroApp.Data
                 using (var reader = new StreamReader(s)) script = reader.ReadToEnd();
             }
 
-            using (var cn = new SqlConnection(ConnectionString))
+            using (var cn = new SQLiteConnection(ConnectionString))
             {
                 cn.Open();
-                foreach (string batch in Regex.Split(script, @"^\s*GO\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase))
-                {
-                    if (string.IsNullOrWhiteSpace(batch)) continue;
-                    using (var cmd = new SqlCommand(batch, cn)) cmd.ExecuteNonQuery();
-                }
+                using (var cmd = new SQLiteCommand(script, cn)) cmd.ExecuteNonQuery();
             }
         }
     }

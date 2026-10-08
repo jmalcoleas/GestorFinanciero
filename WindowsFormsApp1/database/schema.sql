@@ -1,107 +1,68 @@
--- Esquema que la aplicación ejecuta al arrancar (es idempotente: se puede lanzar varias veces).
--- Los lotes se separan con líneas que contienen solo GO.
+-- Esquema SQLite que la aplicación crea la primera vez que arranca (datos\gestor.db).
+-- Es idempotente: se puede ejecutar varias veces. Fechas como texto ISO (yyyy-MM-dd).
 
-IF OBJECT_ID('dbo.users', 'U') IS NULL
-CREATE TABLE users (
-    id INT IDENTITY(1,1) PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    email VARCHAR(150) NOT NULL UNIQUE,
-    password_hash VARCHAR(256) NOT NULL,
-    is_active BIT NOT NULL DEFAULT 1,
-    created_at DATETIME DEFAULT GETDATE(),
-    updated_at DATETIME DEFAULT GETDATE()
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    password_hash TEXT NOT NULL,
+    initial_balance REAL NOT NULL DEFAULT 0,   -- dinero en cuenta al empezar
+    initial_savings REAL NOT NULL DEFAULT 0,   -- ahorros al empezar
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
-GO
 
-IF OBJECT_ID('dbo.categories', 'U') IS NULL
-CREATE TABLE categories (
-    id INT IDENTITY(1,1) PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    type VARCHAR(10) NOT NULL CHECK (type IN ('income', 'expense')),
-    user_id INT,
-    is_active BIT NOT NULL DEFAULT 1,
-    created_at DATETIME DEFAULT GETDATE(),
-    updated_at DATETIME DEFAULT GETDATE(),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
-GO
 
-IF OBJECT_ID('dbo.transactions', 'U') IS NULL
-CREATE TABLE transactions (
-    id INT IDENTITY(1,1) PRIMARY KEY,
-    amount DECIMAL(10,2) NOT NULL,
-    date DATE NOT NULL DEFAULT GETDATE(),
-    description VARCHAR(255),
-    category_id INT NOT NULL,
-    user_id INT NOT NULL,
-    is_active BIT NOT NULL DEFAULT 1,
-    created_at DATETIME DEFAULT GETDATE(),
-    updated_at DATETIME DEFAULT GETDATE(),
-    FOREIGN KEY (category_id) REFERENCES categories(id),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    amount REAL NOT NULL,
+    savings_amount REAL NOT NULL DEFAULT 0,    -- parte de un ingreso que va a ahorros
+    date TEXT NOT NULL,
+    description TEXT,
+    category_id INTEGER NOT NULL REFERENCES categories(id),
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    CHECK (savings_amount >= 0 AND savings_amount <= amount)
 );
-GO
 
--- Presupuesto de un mes para una categoría de gasto (p. ej. "Cenas": 55 EUR en octubre).
-IF OBJECT_ID('dbo.budgets', 'U') IS NULL
-CREATE TABLE budgets (
-    id INT IDENTITY(1,1) PRIMARY KEY,
-    user_id INT NOT NULL,
-    category_id INT NOT NULL,
-    [year] INT NOT NULL,
-    [month] INT NOT NULL CHECK ([month] BETWEEN 1 AND 12),
-    amount DECIMAL(10,2) NOT NULL CHECK (amount > 0),
-    created_at DATETIME DEFAULT GETDATE(),
-    updated_at DATETIME DEFAULT GETDATE(),
-    CONSTRAINT UQ_budgets UNIQUE (user_id, category_id, [year], [month]),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (category_id) REFERENCES categories(id)
+CREATE TABLE IF NOT EXISTS budgets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    category_id INTEGER NOT NULL REFERENCES categories(id),
+    [year] INTEGER NOT NULL,
+    [month] INTEGER NOT NULL CHECK ([month] BETWEEN 1 AND 12),
+    amount REAL NOT NULL CHECK (amount > 0),
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (user_id, category_id, [year], [month])
 );
-GO
 
--- Meses ya felicitados, para no repetir el mensaje de enhorabuena.
-IF OBJECT_ID('dbo.month_celebrations', 'U') IS NULL
-CREATE TABLE month_celebrations (
-    user_id INT NOT NULL,
-    [year] INT NOT NULL,
-    [month] INT NOT NULL,
-    created_at DATETIME DEFAULT GETDATE(),
-    PRIMARY KEY (user_id, [year], [month]),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS month_celebrations (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    [year] INTEGER NOT NULL,
+    [month] INTEGER NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, [year], [month])
 );
-GO
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_transactions_user_date' AND object_id = OBJECT_ID('dbo.transactions'))
-CREATE INDEX IX_transactions_user_date ON transactions (user_id, date);
-GO
-
--- ==== Ahorros y saldos de partida ====
--- Saldos con los que el usuario empieza a usar la aplicación.
-IF COL_LENGTH('dbo.users', 'initial_balance') IS NULL
-ALTER TABLE users ADD initial_balance DECIMAL(12,2) NOT NULL CONSTRAINT DF_users_initial_balance DEFAULT 0;
-GO
-
-IF COL_LENGTH('dbo.users', 'initial_savings') IS NULL
-ALTER TABLE users ADD initial_savings DECIMAL(12,2) NOT NULL CONSTRAINT DF_users_initial_savings DEFAULT 0;
-GO
-
--- Parte de un ingreso que se destina directamente a ahorros (el resto va a la cuenta).
-IF COL_LENGTH('dbo.transactions', 'savings_amount') IS NULL
-ALTER TABLE transactions ADD savings_amount DECIMAL(10,2) NOT NULL CONSTRAINT DF_transactions_savings DEFAULT 0;
-GO
-
-IF OBJECT_ID('dbo.CK_transactions_savings', 'C') IS NULL
-ALTER TABLE transactions ADD CONSTRAINT CK_transactions_savings CHECK (savings_amount >= 0 AND savings_amount <= amount);
-GO
-
--- Meses en los que el usuario eligió "Omitir" al pedirle el ingreso principal.
-IF OBJECT_ID('dbo.income_prompt_skips', 'U') IS NULL
-CREATE TABLE income_prompt_skips (
-    user_id INT NOT NULL,
-    [year] INT NOT NULL,
-    [month] INT NOT NULL,
-    created_at DATETIME DEFAULT GETDATE(),
-    PRIMARY KEY (user_id, [year], [month]),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS income_prompt_skips (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    [year] INTEGER NOT NULL,
+    [month] INTEGER NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, [year], [month])
 );
-GO
+
+CREATE INDEX IF NOT EXISTS IX_transactions_user_date ON transactions (user_id, date);

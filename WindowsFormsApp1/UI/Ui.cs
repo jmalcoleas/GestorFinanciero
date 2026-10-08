@@ -1,5 +1,5 @@
 using System;
-using System.Data.SqlClient;
+using System.Data.Common;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -104,7 +104,7 @@ namespace GestorFinancieroApp.UI
                 action();
                 return true;
             }
-            catch (SqlException ex)
+            catch (DbException ex)
             {
                 MessageBox.Show(owner, "Error de base de datos:\n" + ex.Message, "Gestor Financiero",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
