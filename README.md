@@ -4,6 +4,16 @@ A portable desktop application built with **C# (Windows Forms)** and **SQLite** 
 
 > **Project status:** Working and in daily personal use. Next steps are listed in the [Roadmap](#roadmap).
 
+## Download
+
+**[⬇ Download the latest version (Windows)](https://github.com/jmalcoleas/GestorFinanciero/releases/latest)**: get `GestorFinanciero_portable.zip` from the *Assets* section.
+
+1. Extract the **whole folder** from the zip (right-click → *Extract all*).
+2. Run `GestorFinancieroApp.exe`.
+3. Create your account on first launch.
+
+Requires Windows 10 or 11. Nothing else to install. Windows may warn that the app is unsigned: choose *More info → Run anyway*.
+
 ## Why this project
 
 Most finance apps track *what happened*. This one is built around a simple monthly routine:
@@ -62,7 +72,7 @@ GestorFinancieroApp/
 
 ## Getting started
 
-**To use it:** download the portable `.zip`, extract the whole folder and run `GestorFinancieroApp.exe`. Nothing else needs to be installed. Windows may warn that the app is unsigned: choose *More info → Run anyway*.
+**To use it:** see [Download](#download) above.
 
 **To develop:**
 1. Clone the repository:
