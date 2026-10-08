@@ -1,67 +1,91 @@
 # Personal Finance Manager (Gestor Financiero)
 
-A desktop application built with **C# (Windows Forms)** and **SQL Server** to manage personal finances — track income and expenses by category and keep an eye on your monthly balance.
+A portable desktop application built with **C# (Windows Forms)** and **SQLite** to manage personal finances: record income and expenses, split each month's income between savings and spending, set budgets per category, and see at a glance whether the month is going well.
 
-> **Project status:** In active development. Core database is complete; application features are being built incrementally.
+> **Project status:** Working and in daily personal use. Next steps are listed in the [Roadmap](#roadmap).
 
-## Overview
+## Why this project
 
-This project is a personal finance manager designed as a practical way to apply relational database design and desktop application development. It allows a user to record their income and expenses, organize them by category, and review a monthly summary of where their money goes.
+Most finance apps track *what happened*. This one is built around a simple monthly routine:
 
-## Tech Stack
-
-- **Language:** C#
-- **Framework:** .NET Framework (Windows Forms)
-- **Database:** Microsoft SQL Server
-- **IDE:** Visual Studio 2022
+1. Start the month by registering your main income.
+2. Decide how much of it goes straight to **savings**.
+3. The rest is what you can **spend** during the month, on dinners, cinema, video games or anything else.
+4. Every expense is subtracted from your bank account and from the month's available money, so you always see where you stand.
 
 ## Features
 
-**Implemented**
-- Normalized relational database (users, categories, transactions)
-- Sample data and core SQL queries (monthly balance, spending by category)
+- **Accounts with password hashing**: sign-up and login, passwords stored with PBKDF2-SHA256 and a random salt per user.
+- **Starting balances**: when signing up you enter the money in your bank account and your savings; they can be corrected later.
+- **Monthly main income**: at the start of each month the app asks for your income and how much goes to savings. If you skip it, it does not ask again that month.
+- **Totals and monthly figures**: bank account and savings (accumulated across all months), plus income, savings, expenses and available money for the selected month.
+- **Budgets by category**: reserve an amount for a destination (e.g. "Dinners with my partner: 55 €"). Each expense in that category is subtracted from it.
+- **Traffic-light indicator**: green / amber / red per category and for the month overall, based on spending versus budget and versus how much of the month has passed.
+- **Month-complete message**: when a finished month closes with every budget respected, the app congratulates you with a personalized message.
+- **Month filter** and full management of movements (add, edit, delete).
+- **Portable**: the data is a single file next to the executable, so the whole folder can be copied to another Windows PC.
 
-**Planned**
-- User login and authentication
-- Add, edit, and delete income and expense records
-- Category management (income / expense)
-- Monthly balance overview (income − expenses)
-- Export monthly reports to Excel
+## How the money works
 
-## Database Design
+| Concept | Rule |
+|---|---|
+| **Bank account** | Starting balance + (every income − its part sent to savings) − every expense |
+| **Savings** | Starting savings + the savings part of every income |
+| **Available this month** | Month income − month savings − month expenses |
+| **Budget** | A spending limit per category and month. It does not move money; it only tracks how much of the limit is used |
 
-The database follows a normalized relational model with three main tables:
+Example: you start with 1,000 € in the account and 700 € saved. In October you register an income of 170 € and send 60 € to savings. Savings become 760 €, the account 1,110 € and 110 € are available this month. Spending 20 € on dinner leaves 1,090 € in the account and 90 € available.
 
-| Table | Description |
-|-------|-------------|
-| `users` | Application users, with soft-delete support (`is_active`) |
-| `categories` | Income/expense categories, linked to a user |
-| `transactions` | Individual financial movements, linked to a category and user |
+**Indicator thresholds**
+- *Category:* amber from 80 % of the budget, red when exceeded.
+- *Month overall:* red if total spending exceeds the total budget or runs more than 25 points ahead of the month's progress; amber when it runs more than 10 points ahead.
 
-Key design choices:
-- Foreign keys with `ON DELETE CASCADE` to keep data consistent
-- `CHECK` constraint to ensure category types are only `income` or `expense`
-- Soft-delete pattern (`is_active`) instead of physically removing rows
-- Audit columns (`created_at`, `updated_at`) on every table
+## Tech stack
 
-The full schema and sample queries are available in the [`database`](WindowsFormsApp1/database) folder.
+- **Language:** C# (.NET Framework 4.7.2)
+- **UI:** Windows Forms, built in code (no designer files)
+- **Database:** SQLite through `System.Data.SQLite`
+- **IDE:** Visual Studio 2022
 
-## Getting Started
+## Project structure
 
-1. Clone the repository:
-```bash
-   git clone https://github.com/jmalcoleas/GestorFinanciero.git
 ```
-2. Open `GestorFinanciero.sln` in Visual Studio 2022.
-3. Run the SQL script in the `database` folder using SQL Server Management Studio to create the database.
-4. Update the connection string in `App.config` to point to your SQL Server instance.
-5. Build and run the project (F5).
+GestorFinanciero.sln
+GestorFinancieroApp/
+├── Data/        Database access (connection, repository, models)
+├── Logic/       Business rules: traffic-light indicator, money formatting
+├── Security/    Password hashing
+├── UI/          Forms: login, main window, dialogs
+├── database/    schema.sql (embedded SQLite schema) and the original SQL Server prototype
+└── Program.cs   Entry point
+```
 
-## Future Improvements
+## Getting started
 
-- Visual charts (spending breakdown, monthly trends) using WinForms Chart controls
-- Multi-user support with proper password hashing
-- Filtering and searching transactions by date range
+**To use it:** download the portable `.zip`, extract the whole folder and run `GestorFinancieroApp.exe`. Nothing else needs to be installed. Windows may warn that the app is unsigned: choose *More info → Run anyway*.
+
+**To develop:**
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/jmalcoleas/GestorFinanciero.git
+   ```
+2. Open `GestorFinanciero.sln` in Visual Studio 2022 (NuGet restores the SQLite package automatically).
+3. Build and run (F5). The database is created on first launch in `datos/gestor.db`.
+
+## Your data
+
+Everything is stored locally in `datos/gestor.db` next to the executable. To back up your data, copy that file. To move to another PC, copy the whole folder. Nothing is sent over the network.
+
+## Roadmap
+
+Ideas under consideration, not commitments:
+
+- Android version, possibly in Kotlin
+- Sharing the same data between PC and phone
+- Charts: spending by category and monthly trend
+- Export monthly reports to Excel
+- Search and date-range filters for movements
+- Unit tests for the business rules
 
 ## Author
 
