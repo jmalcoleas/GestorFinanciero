@@ -88,7 +88,7 @@ namespace GestorFinancieroApp.Logic
             s = s.Contains(",") ? s.Replace(".", "") : s.Replace('.', ',');
             if (decimal.TryParse(s, NumberStyles.AllowDecimalPoint, Es, out value))
             {
-                value = Math.Round(value, 2);
+                value = Math.Round(value, 2, MidpointRounding.AwayFromZero);
                 return true;
             }
             return false;

@@ -14,9 +14,10 @@ namespace GestorFinancieroApp.Data
         public static string ConnectionString { get; private set; }
         public static string DatabasePath { get; private set; }
 
-        public static void Initialize()
+        /// <param name="dataDirectory">Carpeta de los datos; por defecto, "datos" junto al ejecutable.</param>
+        public static void Initialize(string dataDirectory = null)
         {
-            string dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "datos");
+            string dir = dataDirectory ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "datos");
             try
             {
                 Directory.CreateDirectory(dir);
@@ -29,6 +30,7 @@ namespace GestorFinancieroApp.Data
             }
 
             DatabasePath = Path.Combine(dir, "gestor.db");
+            bool isNewDatabase = !File.Exists(DatabasePath);
             ConnectionString = new SQLiteConnectionStringBuilder
             {
                 DataSource = DatabasePath,
@@ -38,6 +40,7 @@ namespace GestorFinancieroApp.Data
             }.ToString();
 
             ApplySchema();
+            Migrations.Run(ConnectionString, DatabasePath, isNewDatabase);
         }
 
         private static void ApplySchema()

@@ -1,5 +1,6 @@
 -- Esquema SQLite que la aplicación crea la primera vez que arranca (datos\gestor.db).
 -- Es idempotente: se puede ejecutar varias veces. Fechas como texto ISO (yyyy-MM-dd).
+-- Este archivo es la versión 1 y no se modifica: los cambios nuevos van en Data\Migrations.cs.
 
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
