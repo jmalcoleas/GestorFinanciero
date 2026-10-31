@@ -62,6 +62,12 @@
     <Compile Include="UI\CelebrationForm.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="UI\IncomeExpensesPage.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="UI\SavingsPage.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
     <Compile Include="UI\LoginForm.cs">
       <SubType>Form</SubType>
     </Compile>

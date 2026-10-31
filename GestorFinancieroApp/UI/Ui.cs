@@ -10,6 +10,7 @@ namespace GestorFinancieroApp.UI
         public static readonly Font Base = new Font("Segoe UI", 10f);
         public static readonly Color Accent = Color.FromArgb(31, 111, 235);
         public static readonly Color Surface = Color.FromArgb(244, 246, 249);
+        public static readonly Color Savings = Color.FromArgb(130, 80, 223);
 
         /// <summary>Icono del ejecutable, para la barra de título y la barra de tareas.</summary>
         public static readonly Icon AppIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
@@ -89,6 +90,83 @@ namespace GestorFinancieroApp.UI
             };
             foreach (Button b in buttons) p.Controls.Add(b);
             return p;
+        }
+
+        /// <summary>Tarjeta con un título pequeño y una cifra grande.</summary>
+        public static Control Card(string caption, Label value, Color accent)
+        {
+            var card = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.White,
+                Margin = new Padding(0, 8, 8, 8),
+                Padding = new Padding(16, 10, 10, 6)
+            };
+            var strip = new Panel { Dock = DockStyle.Left, Width = 5, BackColor = accent };
+            value.Dock = DockStyle.Fill;
+            value.Font = new Font("Segoe UI", 14f, FontStyle.Bold);
+            value.TextAlign = ContentAlignment.MiddleLeft;
+            var cap = new Label
+            {
+                Text = caption,
+                Dock = DockStyle.Top,
+                Height = 24,
+                ForeColor = Color.FromArgb(110, 118, 129)
+            };
+            card.Controls.Add(value);
+            card.Controls.Add(cap);
+            card.Controls.Add(strip);
+            return card;
+        }
+
+        public static FlowLayoutPanel Toolbar(params Button[] buttons)
+        {
+            var p = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                Padding = new Padding(4, 6, 4, 6)
+            };
+            p.Controls.AddRange(buttons);
+            return p;
+        }
+
+        public static DataGridView NewGrid()
+        {
+            var g = new DataGridView
+            {
+                Dock = DockStyle.Fill,
+                ReadOnly = true,
+                AllowUserToAddRows = false,
+                AllowUserToDeleteRows = false,
+                AllowUserToResizeRows = false,
+                RowHeadersVisible = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                MultiSelect = false,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.None,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                EnableHeadersVisualStyles = false,
+                RowTemplate = { Height = 30 }
+            };
+            g.ColumnHeadersDefaultCellStyle.BackColor = Surface;
+            g.ColumnHeadersDefaultCellStyle.SelectionBackColor = Surface;
+            g.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(60, 64, 70);
+            g.ColumnHeadersHeight = 32;
+            g.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+            return g;
+        }
+
+        public static void AddGridColumns(DataGridView g, params string[] headers)
+        {
+            foreach (string h in headers)
+            {
+                var col = new DataGridViewTextBoxColumn { HeaderText = h, SortMode = DataGridViewColumnSortMode.NotSortable };
+                bool numeric = h == "Presupuesto" || h == "Gastado" || h == "Restante" || h == "Uso" || h == "Importe" || h == "A ahorros";
+                if (numeric) col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+                if (h == "Descripción" || h == "Destino") col.FillWeight = 160;
+                g.Columns.Add(col);
+            }
         }
 
         public static void Warn(IWin32Window owner, string message)
