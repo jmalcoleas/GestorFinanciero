@@ -48,6 +48,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Data\Db.cs" />
+    <Compile Include="Data\Migrations.cs" />
     <Compile Include="Data\Models.cs" />
     <Compile Include="Data\Repository.cs" />
     <Compile Include="Logic\Indicator.cs" />

@@ -40,7 +40,7 @@ namespace GestorFinancieroApp.Data
 
         private static decimal Dec(SQLiteDataReader r, int i)
         {
-            return r.IsDBNull(i) ? 0m : Math.Round(Convert.ToDecimal(r.GetValue(i), CultureInfo.InvariantCulture), 2);
+            return r.IsDBNull(i) ? 0m : Math.Round(Convert.ToDecimal(r.GetValue(i), CultureInfo.InvariantCulture), 2, MidpointRounding.AwayFromZero);
         }
 
         private static DateTime Day(SQLiteDataReader r, int i)
