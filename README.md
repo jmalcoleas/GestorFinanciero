@@ -2,7 +2,7 @@
 
 A portable desktop application built with **C# (Windows Forms)** and **SQLite** to manage personal finances: record income and expenses, split each month's income between savings and spending, set budgets per category, and see at a glance whether the month is going well.
 
-> **Project status:** Working and in daily personal use. Next steps are listed in the [Roadmap](#roadmap).
+> **Project status:** Version 1.0.0 is available to download. Version 2 is in development on the [`version-2`](https://github.com/jmalcoleas/GestorFinanciero/tree/version-2) branch.
 
 ## Download
 
@@ -13,6 +13,16 @@ A portable desktop application built with **C# (Windows Forms)** and **SQLite** 
 3. Create your account on first launch.
 
 Requires Windows 10 or 11. Nothing else to install. Windows may warn that the app is unsigned: choose *More info → Run anyway*.
+
+## Find your way around this repository
+
+| I want to... | Go to |
+|---|---|
+| Use the app | [Releases](https://github.com/jmalcoleas/GestorFinanciero/releases/latest) |
+| Read the code of the published version | Branch `master` |
+| See the work in progress | Branch [`version-2`](https://github.com/jmalcoleas/GestorFinanciero/tree/version-2) |
+| See the history of changes | [Commits](https://github.com/jmalcoleas/GestorFinanciero/commits/version-2) |
+| Build the project myself | [Build from source](#build-from-source) |
 
 ## Why this project
 
@@ -25,6 +35,8 @@ Most finance apps track *what happened*. This one is built around a simple month
 
 ## Features
 
+These features are included in version 1.0.0:
+
 - **Accounts with password hashing**: sign-up and login, passwords stored with PBKDF2-SHA256 and a random salt per user.
 - **Starting balances**: when signing up you enter the money in your bank account and your savings; they can be corrected later.
 - **Monthly main income**: at the start of each month the app asks for your income and how much goes to savings. If you skip it, it does not ask again that month.
@@ -34,6 +46,26 @@ Most finance apps track *what happened*. This one is built around a simple month
 - **Month-complete message**: when a finished month closes with every budget respected, the app congratulates you with a personalized message.
 - **Month filter** and full management of movements (add, edit, delete).
 - **Portable**: the data is a single file next to the executable, so the whole folder can be copied to another Windows PC.
+
+## Version 2 (in development)
+
+Not yet available in the download.
+
+**Done**
+- [x] Automatic backup of the data before each database update
+- [x] Versioned database updates that undo themselves if a step fails
+- [x] Automated tests for the business rules
+- [x] Correct rounding of amounts to the nearest cent
+- [x] Sidebar with separate pages for *Income and expenses* and *Savings*
+- [x] Traffic-light summary moved to the *Budgets* tab for a cleaner main page
+
+**Planned**
+- [ ] Charts: income versus expenses, and spending by category
+- [ ] Savings account with interest accrued daily and paid monthly
+- [ ] Moving money from savings back to the account for emergencies
+- [ ] Investment tracking with recurring monthly contributions
+- [ ] Guided start of the month
+- [ ] New original icon
 
 ## How the money works
 
@@ -55,26 +87,27 @@ Example: you start with 1,000 € in the account and 700 € saved. In October y
 - **Language:** C# (.NET Framework 4.7.2)
 - **UI:** Windows Forms, built in code (no designer files)
 - **Database:** SQLite through `System.Data.SQLite`
+- **Tests:** MSTest (`version-2` branch)
 - **IDE:** Visual Studio 2022
 
 ## Project structure
 
 ```
-GestorFinanciero.sln
-GestorFinancieroApp/
-├── Data/        Database access (connection, repository, models)
-├── Logic/       Business rules: traffic-light indicator, money formatting
-├── Security/    Password hashing
-├── UI/          Forms: login, main window, dialogs
-├── database/    schema.sql (embedded SQLite schema) and the original SQL Server prototype
-└── Program.cs   Entry point
+GestorFinanciero.sln          Solution: open this file in Visual Studio
+GestorFinancieroApp/          The application
+├── Data/                     Database access (connection, repository, models)
+├── Logic/                    Business rules: traffic-light indicator, money formatting
+├── Security/                 Password hashing
+├── UI/                       Windows, pages and dialogs
+├── database/                 schema.sql (embedded SQLite schema) and the original SQL Server prototype
+└── Program.cs                Entry point
+GestorFinancieroApp.Tests/    Automated tests (version-2 branch)
 ```
 
-## Getting started
+## Build from source
 
-**To use it:** see [Download](#download) above.
+This section is for developers. To simply use the app, see [Download](#download).
 
-**To develop:**
 1. Clone the repository:
    ```bash
    git clone https://github.com/jmalcoleas/GestorFinanciero.git
@@ -86,16 +119,13 @@ GestorFinancieroApp/
 
 Everything is stored locally in `datos/gestor.db` next to the executable. To back up your data, copy that file. To move to another PC, copy the whole folder. Nothing is sent over the network.
 
-## Roadmap
+## Future ideas
 
 Ideas under consideration, not commitments:
 
-- Android version, possibly in Kotlin
-- Sharing the same data between PC and phone
-- Charts: spending by category and monthly trend
 - Export monthly reports to Excel
 - Search and date-range filters for movements
-- Unit tests for the business rules
+- Android version
 
 ## Author
 
